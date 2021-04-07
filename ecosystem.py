@@ -33,22 +33,20 @@ class Game(object):
 			players.append(Player(board, score))
 		self.players = players
 
-
 	def scoreGame(self):
 		for player in self.players:
 			for card in self.cardset:
 				if card in player.board:
-					player.score[card] = self.cardScore(card, player.board)
+					player.score[card] = self.cardScore(card, player)
 			self.wolfCounts.append(player.score['wolves'])
 			self.streamCounts.append(player.score['stream'])
 
 		# resolve wolves 12/ 8/ 4 for most wolves
 		# resolve streams 8/5 for longest stream
-		# Gaps 6+, 5, 4, 3, 2
-		# Points -6, 0, 3, 7, 12
+		# Gaps 6+, 5, 4, 3, 2 // Points -6, 0, 3, 7, 12
 
-
-	def cardScore(self, card, board):
+	def cardScore(self, card, player):
+		board = player.board
 		score = 0
 		positions = [i for (i,j) in enumerate(board) if j==card]
 
@@ -83,13 +81,49 @@ class Game(object):
 			score = len(positions)
 
 		if card == 'stream':
-			score = 0
-		# return length of largest stream
+			player.streams = self.getAreas(positions)
+			score = max([len(stream) for stream in player.streams])
 
 		# - stream, 20. largest stream 8/5
 		# - dragonfly, 8. points for length of adj streams
 		# - meadow, 20. 0/3/6/10/15 for 1/2/3/4/5 adj meadows
 		return score
+
+	def getAreas(self, positions):
+		areas = []
+		merged = False
+		while positions:
+			area = [positions.pop()]
+			for index in positions:
+				if self.checkAdjacent(area[0], index):
+					area.append(index)
+					positions.remove(index)
+			for i, group in enumerate(areas):
+				for g in group:
+					if self.checkAdjacent(area[0], g):
+						areas[i] = group.union(set(area))
+						merged = True
+			if not merged:
+				areas.append(set(area))
+			merged = False
+		return(areas)
+
+
+	def checkAdjacent(self, index1, index2):
+		# check above
+		if index1 > 4 and index2 + 5 == index1:
+			return True
+		# check below
+		elif index1 < 15 and index2 - 5 == index1:
+			return True
+		# check right
+		elif index1 not in [4, 9, 14, 19] and index2 - 1 == index1:
+			return True
+		# check left
+		elif index1 not in [0, 5, 10, 15] and index2 + 1 == index1:
+			return True
+		else:
+			return False
 
 
 	def adjacent(self, board, index, cards, eagle=False):
@@ -139,7 +173,6 @@ class Game(object):
 				adjacent_count += 1
 		return adjacent_count
 
-
 	def deerLines(self, board, positions):
 		rows = [set([0,1,2,3,4]), set([5,6,7,8,9]), set([10,11,12,13,14]), set([15,16,17,18,19])]
 		cols = [set([0,5,10,15]), set([1,6,11,16]), set([2,7,12,17]), set([3,8,13,18]), set([4,9,14,19])]
@@ -152,7 +185,6 @@ class Game(object):
 				count += 1
 		return count
 
-
 	def write(self):
 		for p in self.players:
 			print(p.total())
@@ -160,9 +192,8 @@ class Game(object):
 			print(p.board[:5])
 			print(p.board[5:10])
 			print(p.board[10:15])
-			print(p.board[15:19])
+			print(p.board[15:20])
 			print('\n')
-
 
 
 class Player(object):
@@ -170,7 +201,7 @@ class Player(object):
 	def __init__(self, board, score):
 		self.board = board
 		self.score = score
-
+		self.streams = []
 
 	def total(self):
 		return sum([v for v in self.score.values()])
