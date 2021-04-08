@@ -1,8 +1,10 @@
+import time
+import pandas as pd
 from random import shuffle
 
 class Game(object):
 	"""Generate endgame states in Ecosystem by Genius Games"""
-	def __init__(self, players = 3):
+	def __init__(self, id, players = 3):
 		self.cardset = set(['bear','bee','meadow','trout','eagle','rabbit','dragonfly','fox','deer','stream','wolves'])
 		self.deck = ['bear'] 		* 12 + \
 					['bee'] 		* 8 + \
@@ -15,11 +17,10 @@ class Game(object):
 					['deer'] 		* 12 + \
 					['stream'] 		* 20 + \
 					['wolves'] 		* 12
-		self.wolfCounts = []
-		self.streamCounts = []
 		if players < 3 or players > 6:
 			raise Exception('There must be 3-6 players.')
 		self.players = players
+		self.id = id
 		self.deal()
 		self.scoreGame()
 
@@ -33,17 +34,59 @@ class Game(object):
 			players.append(Player(board, score))
 		self.players = players
 
+
 	def scoreGame(self):
 		for player in self.players:
 			for card in self.cardset:
 				if card in player.board:
 					player.score[card] = self.cardScore(card, player)
-			self.wolfCounts.append(player.score['wolves'])
-			self.streamCounts.append(player.score['stream'])
 
-		# resolve wolves 12/ 8/ 4 for most wolves
-		# resolve streams 8/5 for longest stream
-		# Gaps 6+, 5, 4, 3, 2 // Points -6, 0, 3, 7, 12
+		# build wolf payout: 12/ 8/ 4 for most wolves
+		wolfCounts = [player.score['wolves'] for player in self.players]
+		wolf_1 = max(wolfCounts)
+		wolfPayout = {}
+		if wolfCounts.count(wolf_1) > 2:
+			wolfPayout[wolf_1] = 12
+		elif wolfCounts.count(wolf_1) == 2:
+			wolfCounts.remove(wolf_1)
+			wolfCounts.remove(wolf_1)
+			wolf_2 = max(wolfCounts)
+			wolfPayout[wolf_1] = 12
+			wolfPayout[wolf_2] = 4
+		elif wolfCounts.count(wolf_1) == 1:
+			wolfCounts.remove(wolf_1)
+			wolf_2 = max(wolfCounts)
+			if wolfCounts.count(wolf_2) > 1:
+				wolfPayout[wolf_1] = 12
+				wolfPayout[wolf_2] = 8
+			else:
+				wolfCounts.remove(wolf_2)
+				wolf_3 = max(wolfCounts)
+				wolfPayout[wolf_1] = 12
+				wolfPayout[wolf_2] = 8
+				wolfPayout[wolf_3] = 4
+		wolfPayout[0] = 0
+
+		# build stream payout. 8/5 for longest streams
+		streamCounts = [player.score['stream'] for player in self.players]
+		stream_1 = max(streamCounts)
+		streamPayout = {}
+		if streamCounts.count(stream_1) > 1:
+			streamPayout[stream_1] = 8
+		else:
+			streamCounts.remove(stream_1)
+			stream_2 = max(streamCounts)
+			streamPayout[stream_1] = 8
+			streamPayout[stream_2] = 5
+		streamPayout[0] = 0
+
+		# assign each player scores for streams, wolves and gaps
+		for player in self.players:
+			player.score['stream'] = streamPayout.get(player.score['stream'], 0)
+			player.score['wolves'] = wolfPayout.get(player.score['wolves'], 0)
+			gaps = len([ _ for _ in player.score.values() if _ == 0 ])
+			gapPayout = {0:12, 1:12, 2:12, 3:7, 4:3, 5:0, 6:-6}
+			player.score['gaps'] = gapPayout.get(gaps, -6)
 
 	def cardScore(self, card, player):
 		board = player.board
@@ -84,9 +127,20 @@ class Game(object):
 			player.streams = self.getAreas(positions)
 			score = max([len(stream) for stream in player.streams])
 
-		# - stream, 20. largest stream 8/5
-		# - dragonfly, 8. points for length of adj streams
-		# - meadow, 20. 0/3/6/10/15 for 1/2/3/4/5 adj meadows
+		if card == 'meadow':
+			player.meadows = self.getAreas(positions)
+			meadowPayout = {1:0, 2:3, 3:6, 4:10, 5:15}
+			score = sum([meadowPayout.get(len(m), 15) for m in player.meadows])
+
+		# - dragonfly: points for length of adj streams
+		if card == 'dragonfly':
+			for dragonfly in positions:
+				for stream in player.streams:
+					for s in stream:
+						if self.checkAdjacent(dragonfly, s):
+							score += len(stream)
+							break
+
 		return score
 
 	def getAreas(self, positions):
@@ -185,7 +239,7 @@ class Game(object):
 				count += 1
 		return count
 
-	def write(self):
+	def print(self):
 		for p in self.players:
 			print(p.total())
 			print(p.score)
@@ -195,6 +249,16 @@ class Game(object):
 			print(p.board[15:20])
 			print('\n')
 
+	def report(self):
+		results = []
+		for p in self.players:
+			readout = p.score.copy()
+			readout['game'] = self.id
+			readout['total'] = p.total()
+			readout['board'] = p.board
+			results.append(readout)
+		return results
+
 
 class Player(object):
 
@@ -202,10 +266,26 @@ class Player(object):
 		self.board = board
 		self.score = score
 		self.streams = []
+		self.meadows = []
 
 	def total(self):
 		return sum([v for v in self.score.values()])
 
+
+class Scenario(object):
+
+	def __init__(self, games=1, players=3, output='dataframe'):
+		self.results = []
+		for g in range(games):
+			run = Game(g, players)
+			self.results.extend(run.report())
+
+	def report(self):
+		return self.results
+
+
 if __name__ == '__main__':
-	g = Game()
-	g.write()
+	start_time = time.time()
+	s = Scenario(100000,3)
+	df = pd.DataFrame(s.report())
+	print('{} seconds'.format(time.time() - start_time))
