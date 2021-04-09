@@ -37,9 +37,12 @@ class Game(object):
 
 	def scoreGame(self):
 		for player in self.players:
-			for card in self.cardset:
+			for card in self.cardset - set(['dragonfly']):
 				if card in player.board:
 					player.score[card] = self.cardScore(card, player)
+			if 'dragonfly' in player.board:
+				player.score['dragonfly'] = self.cardScore('dragonfly', player)
+
 
 		# build wolf payout: 12/ 8/ 4 for most wolves
 		wolfCounts = [player.score['wolves'] for player in self.players]
@@ -274,11 +277,16 @@ class Player(object):
 
 class Scenario(object):
 
-	def __init__(self, games=1, players=3, output='dataframe'):
+	def __init__(self, games=10, players=3, floor=0):
 		self.results = []
-		for g in range(games):
-			run = Game(g, players)
-			self.results.extend(run.report())
+		index = 0
+		while len(self.results) < games:
+			run = Game(index, players)
+			outcome = run.report()
+			top_score = max([outcome[p]['total'] for p in range(players)])
+			if top_score >= floor:
+				self.results.extend(run.report())
+				index += 1
 
 	def report(self):
 		return self.results
@@ -286,6 +294,6 @@ class Scenario(object):
 
 if __name__ == '__main__':
 	start_time = time.time()
-	s = Scenario(100000,3)
+	s = Scenario(10, 3, 0)
 	df = pd.DataFrame(s.report())
 	print('{} seconds'.format(time.time() - start_time))
