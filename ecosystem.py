@@ -3,7 +3,9 @@ import pandas as pd
 from random import shuffle
 
 class Game(object):
-	"""Generate endgame states in Ecosystem by Genius Games"""
+	"""
+	Generates endgame board scenarios of the Ecosystem game by Genius Games
+	"""
 	def __init__(self, id, players = 3):
 		self.cardset = set(['bear','bee','meadow','trout','eagle','rabbit','dragonfly','fox','deer','stream','wolves'])
 		self.deck = ['bear'] 		* 12 + \
@@ -21,11 +23,11 @@ class Game(object):
 			raise Exception('There must be 3-6 players.')
 		self.players = players
 		self.id = id
-		self.deal()
-		self.scoreGame()
+		self._deal()
+		self._scoreGame()
 
 
-	def deal(self):
+	def _deal(self):
 		shuffle(self.deck)
 		players = []
 		for p in range(self.players):
@@ -35,13 +37,13 @@ class Game(object):
 		self.players = players
 
 
-	def scoreGame(self):
+	def _scoreGame(self):
 		for player in self.players:
 			for card in self.cardset - set(['dragonfly']):
 				if card in player.board:
-					player.score[card] = self.cardScore(card, player)
+					player.score[card] = self._cardScore(card, player)
 			if 'dragonfly' in player.board:
-				player.score['dragonfly'] = self.cardScore('dragonfly', player)
+				player.score['dragonfly'] = self._cardScore('dragonfly', player)
 
 
 		# build wolf payout: 12/ 8/ 4 for most wolves
@@ -91,26 +93,26 @@ class Game(object):
 			gapPayout = {0:12, 1:12, 2:12, 3:7, 4:3, 5:0, 6:-6}
 			player.score['gaps'] = gapPayout.get(gaps, -6)
 
-	def cardScore(self, card, player):
+	def _cardScore(self, card, player):
 		board = player.board
 		score = 0
 		positions = [i for (i,j) in enumerate(board) if j==card]
 
 		if card == 'bear':
 			for bear in positions:
-				score += 2 * self.adjacent(board, bear, ['trout', 'bee'])
+				score += 2 * self._adjacent(board, bear, ['trout', 'bee'])
 
 		if card == 'bee':
 			for bee in positions:
-				score += 3 * self.adjacent(board, bee, ['meadow'])
+				score += 3 * self._adjacent(board, bee, ['meadow'])
 
 		if card == 'trout':
 			for trout in positions:
-				score += 2 * self.adjacent(board, trout, ['dragonfly','stream'])
+				score += 2 * self._adjacent(board, trout, ['dragonfly','stream'])
 
 		if card == 'fox':
 			for fox in positions:
-				if self.adjacent(board, fox, ['bear', 'wolves']) == 0:
+				if self._adjacent(board, fox, ['bear', 'wolves']) == 0:
 					score += 3
 
 		if card == 'rabbit':
@@ -118,20 +120,20 @@ class Game(object):
 
 		if card == 'eagle':
 			for eagle in positions:
-				score += 2 * self.adjacent(board, eagle, ['trout','rabbit'], True)
+				score += 2 * self._adjacent(board, eagle, ['trout','rabbit'], True)
 
 		if card == 'deer':
-			score += 2 * self.deerLines(board, positions)
+			score += 2 * self._deerLines(board, positions)
 
 		if card == 'wolves':
 			score = len(positions)
 
 		if card == 'stream':
-			player.streams = self.getAreas(positions)
+			player.streams = self._getAreas(positions)
 			score = max([len(stream) for stream in player.streams])
 
 		if card == 'meadow':
-			player.meadows = self.getAreas(positions)
+			player.meadows = self._getAreas(positions)
 			meadowPayout = {1:0, 2:3, 3:6, 4:10, 5:15}
 			score = sum([meadowPayout.get(len(m), 15) for m in player.meadows])
 
@@ -140,24 +142,24 @@ class Game(object):
 			for dragonfly in positions:
 				for stream in player.streams:
 					for s in stream:
-						if self.checkAdjacent(dragonfly, s):
+						if self._checkAdjacent(dragonfly, s):
 							score += len(stream)
 							break
 
 		return score
 
-	def getAreas(self, positions):
+	def _getAreas(self, positions):
 		areas = []
 		merged = False
 		while positions:
 			area = [positions.pop()]
 			for index in positions:
-				if self.checkAdjacent(area[0], index):
+				if self._checkAdjacent(area[0], index):
 					area.append(index)
 					positions.remove(index)
 			for i, group in enumerate(areas):
 				for g in group:
-					if self.checkAdjacent(area[0], g):
+					if self._checkAdjacent(area[0], g):
 						areas[i] = group.union(set(area))
 						merged = True
 			if not merged:
@@ -166,7 +168,7 @@ class Game(object):
 		return(areas)
 
 
-	def checkAdjacent(self, index1, index2):
+	def _checkAdjacent(self, index1, index2):
 		# check above
 		if index1 > 4 and index2 + 5 == index1:
 			return True
@@ -183,7 +185,7 @@ class Game(object):
 			return False
 
 
-	def adjacent(self, board, index, cards, eagle=False):
+	def _adjacent(self, board, index, cards, eagle=False):
 		# 	0	1	2	3	4
 		# 	5	6	7	8	9
 		# 	10	11	12	13	14
@@ -230,7 +232,7 @@ class Game(object):
 				adjacent_count += 1
 		return adjacent_count
 
-	def deerLines(self, board, positions):
+	def _deerLines(self, board, positions):
 		rows = [set([0,1,2,3,4]), set([5,6,7,8,9]), set([10,11,12,13,14]), set([15,16,17,18,19])]
 		cols = [set([0,5,10,15]), set([1,6,11,16]), set([2,7,12,17]), set([3,8,13,18]), set([4,9,14,19])]
 		count = 0
@@ -277,10 +279,21 @@ class Player(object):
 
 class Scenario(object):
 
-	def __init__(self, games=10, players=3, floor=0):
+	def __init__(self, **kwargs):
+		"""
+		Scenario runs a number of games.
+
+		:param int games: Number of boards to return. ie. a 3 player game will return 3 boards.
+		:param int players: Number of players. Accepts 3-6 players.
+		:param int floor: Minimum score that must be attained to include the game in result set.
+
+		"""
+		boards = kwargs.get('boards', 10)
+		players = kwargs.get('players', 3)
+		floor = kwargs.get('floor', -10)
 		self.results = []
 		index = 0
-		while len(self.results) < games:
+		while len(self.results) < boards:
 			run = Game(index, players)
 			outcome = run.report()
 			top_score = max([outcome[p]['total'] for p in range(players)])
@@ -294,6 +307,7 @@ class Scenario(object):
 
 if __name__ == '__main__':
 	start_time = time.time()
-	s = Scenario(10, 3, 0)
+	s = Scenario(boards=100000, players=3, floor=-10)
 	df = pd.DataFrame(s.report())
+	df.to_csv('output.csv', mode='w', header=True)
 	print('{} seconds'.format(time.time() - start_time))
