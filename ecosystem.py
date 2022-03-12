@@ -1,6 +1,6 @@
-import time
-import pandas as pd
 from random import shuffle
+
+from player import Player
 
 
 class Game(object):
@@ -264,56 +264,8 @@ class Game(object):
         results = []
         for p in self.players:
             readout = p.score.copy()
-            readout['game'] = self.id
+            readout['gameID'] = self.id
             readout['total'] = p.total()
             readout['board'] = p.board
             results.append(readout)
         return results
-
-
-class Player(object):
-
-    def __init__(self, board, score):
-        self.board = board
-        self.score = score
-        self.streams = []
-        self.meadows = []
-
-    def total(self):
-        return sum([v for v in self.score.values()])
-
-
-class Scenario(object):
-
-    def __init__(self, **kwargs):
-        """
-        Scenario runs a number of games.
-
-        :param int games: Number of boards to return. ie. a 3 player game will return 3 boards.
-        :param int players: Number of players. Accepts 3-6 players.
-        :param int floor: Minimum score that must be attained to include the game in result set.
-
-        """
-        boards = kwargs.get('boards', 10)
-        players = kwargs.get('players', 3)
-        floor = kwargs.get('floor', -10)
-        self.results = []
-        index = 0
-        while len(self.results) < boards:
-            run = Game(index, players)
-            outcome = run.report()
-            top_score = max([outcome[p]['total'] for p in range(players)])
-            if top_score >= floor:
-                self.results.extend(run.report())
-                index += 1
-
-    def report(self):
-        return self.results
-
-
-if __name__ == '__main__':
-    start_time = time.time()
-    s = Scenario()
-    df = pd.DataFrame(s.report())
-    df.to_csv('output.csv', mode='w', header=True)
-    print('{} seconds'.format(time.time() - start_time))
