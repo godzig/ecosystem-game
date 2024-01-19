@@ -33,7 +33,9 @@ class Scenario(object):
 
 if __name__ == '__main__':
     start_time = time.time()
-    s = Scenario(games=1, players=3, floor=-100)
+    s = Scenario(games=10, players=3, floor=-100)
     df = pd.DataFrame(s.report())
     df.to_csv('output.csv', mode='w', header=True)
+    df = df.transpose()
+    df.to_json('output.json')
     print('{} seconds'.format(time.time() - start_time))
